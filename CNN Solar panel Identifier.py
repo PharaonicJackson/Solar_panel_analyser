@@ -49,7 +49,7 @@ def read_csv_dataset(parent_dataset_name):
             list_image = df['name'].to_list()
             out_target = out_target + (df['id'].to_list())
 
-            # Parcours de toutes les images et ajout de la mtrice de l'image
+            # Recuperation de la matrice RGB de chaque image
             for i, name_image in enumerate(list_image):
                 _image = io.imread(os.path.join(son_dataset_path, name_image))
                 out_image.append(_image)
@@ -118,9 +118,12 @@ def display_image(images, im_ligne=5, dim_im=(100, 100)):
 
     # Affichage des images
     if len(images[-1].shape) == 3:
-        plt.imshow(mat_finale)
+        # La matrice est compose de valeur entiere entre 0 et 255
+        # le dtype des valeurs donc etre uint8
+        # Si compose de Reel la valeur devrait etre entre 0 et 1
+        plt.imshow(mat_finale.astype('uint8'))
     else:
-        plt.imshow(mat_finale, cmap='binary')
+        plt.imshow(mat_finale.astype('uint8'), cmap='binary')
     plt.show()
 
 if __name__ == '__main__':
@@ -137,4 +140,4 @@ if __name__ == '__main__':
     # Affichage des 10 premieres images
 
 
-    print('fin')
+    print(y_train[:10])
