@@ -56,114 +56,68 @@ def read_csv_dataset(parent_dataset_name):
 
         return out_image, out_target
 
-def display_image(images,  im_ligne=5, dim_im=(100, 100)):
+def display_image(images, im_ligne=5, dim_im=(100, 100)):
     '''
-    Affiche les images en noir et blanc et les images en couleurs
+    Affiche les images en noir et blanc et les images en couleurs en concatenant les matrices des images
+    et en completant les trous par des matrices nulls
 
     :param images: liste de tableau 3D * [RGB] de l'image
     :im_ligne: nbr d'image affiche par ligne
     :dim_im: tuple de dim 2, resolution de l'image en pixel
-    :param lx: largeur de l'image
-    :param ly: hauteur de l'image
     :return:
     '''
 
-    if target and len(images) != len(target):
-        raise DimError("nombre d'image", "cible des images", len(images), len(target))
 
     dim_x, dim_y = dim_im  # taille des image
-    x_meta_, Y_meta_, _, _, _ = read_csv_dataset(f'{datasets_dir}/GTSRB/origine/Meta.csv',
-                                                 name_csv='Dataset_meta', r=1)
-    # Creation bibliotheque de panneau officiel par numero
-    panneau = {}
-
-    x_train_resized = []
-    # uniformisation de la taille des images
-    [x_train_resized.append(transform.resize(img, (dim_x, dim_y))) for img in images]
 
     # Si image en RGB
-    if len(x_train_resized[-1].shape) == 3:
-        m, n, o = x_train_resized[-1].shape
-        mat_nul = np.ones(
-            shape=(m, n, o))  # Creation de la matrice nulle pour completer les images manquante de la derniere ligne
-        mat_finale = np.zeros(shape=(
-            1, im_ligne * n, 3))  # initialise la matrice RVB mais 1 seul ligne, puis je concatene sur cette matrice
-
-        # Panneau officiels charges et uniformisation de la taille charge en RGB
-        for compteur, img_pan in enumerate(x_meta_):  # L'image de ce ta set est en RGB-A et pas RGB
-            img_pan = np.delete(img_pan, (3), axis=2)  # Je supprime donc la 4 valeur de la 3 eme dimension des couleurs
-            panneau[Y_meta_[compteur]] = images_enhancement(img_pan, width=dim_x, height=dim_y, mode='RGB')
-            # panneau[Y_meta_[compteur]] = transform.resize(img_pan, (dim_x, dim_y))
-
+    if len(images[-1].shape) == 3:
+        m, n, o = images[-1].shape
+        # Creation de la matrice nulle pour completer les images manquantes de la derniere ligne
+        # les 1 de np.ones sont pour afficher des pixels blancs.
+        mat_nul = np.ones(shape=(m, n, o))
+        mat_finale = np.ones(shape=(1, im_ligne * n, 3))
     # Si image en N et B
-    if len(x_train_resized[-1].shape) == 2:
-        m, n = x_train_resized[-1].shape
-        mat_nul = np.ones(
-            shape=(m, n))  # Creation de la matrice nulle pour completer les images manquante de la derniere ligne
-        mat_finale = np.zeros(shape=(
-            1, im_ligne * n))  # initialise la matrice NB mais 1 seul ligne, puis je concatene sur cette matrice
-        # Panneau officiels charges et uniformisation de la taille charge en RGB
-        for compteur, img_pan in enumerate(x_meta_):  # L'image de ce ta set est en RGB-A et pas RGB
-            img_pan = np.delete(img_pan, (3), axis=2)  # Je supprime donc la 4 valeur de la 3 eme dimension des couleurs
-            panneau[Y_meta_[compteur]] = images_enhancement(img_pan, width=dim_x, height=dim_y, mode='L')
-            # panneau[Y_meta_[compteur]] = transform.resize(img_pan, (dim_x, dim_y))
+    if len(images[-1].shape) == 2:
+        m, n = images[-1].shape
+        # Creation de la matrice nulle pour completer les images manquantes de la derniere ligne
+        # les 1 de np.ones sont pour afficher des pixels blancs.
+        mat_nul = np.ones(shape=(m, n))
+        mat_finale = np.zeros(shape=(1, im_ligne * n))  # initialise la matrice NB mais 1 seul ligne, puis je concatene sur cette matrice
 
     # Determination du nombre de ligne dimage
-    nbr_image = len(x_train_resized)
-    nbr_ligne = nbr_image // im_ligne  # Nombre de ligne de 5 photos
+    nbr_image = len(images)
+    nbr_ligne = nbr_image // im_ligne  # Nombre de ligne de im_ligne photos
     nbr_photo_der_ligne = nbr_image % im_ligne  # Nombre de photo su la derniere ligne
-    num_image = 0
 
+    num_image = 0
     # affichage des photos par groupe de im_ligne
     for l in range(nbr_ligne):
         # Initialisation de la premiere photo de chaque ligne
-        if target:
-            a = np.concatenate((x_train_resized[num_image], panneau[target[num_image]]), axis=0)
-        else:
-            a = x_train_resized[num_image]
+        a = images[num_image]
         num_image += 1
-        if target:
-            for i in range(im_ligne - 1):
-                b = np.concatenate((x_train_resized[num_image], panneau[target[num_image]]), axis=0)
-                a = np.concatenate((a, b), axis=1)
-                num_image += 1
-        else:
-            for i in range(im_ligne - 1):
-                a = np.concatenate((a, x_train_resized[num_image]), axis=1)
-                num_image += 1
-        mat_finale = np.concatenate((mat_finale, a), axis=0)
+        # Affichage des photos le long de la ligne
+        for i in range(im_ligne - 1):
+            a = np.concatenate((a, images[num_image]), axis=1) # Photos concatenees horizontalement
+            num_image += 1
+        mat_finale = np.concatenate((mat_finale, a), axis=0)  # En finde ligne, Photos concatenees verticalement
     nbr_mat_null = im_ligne - nbr_photo_der_ligne
 
     # affichage de la derniere ligne
-    if nbr_photo_der_ligne > 0:
-        if target:
-            mat_der_ligne = np.concatenate((x_train_resized[num_image], panneau[target[num_image]]), axis=0)
+    if nbr_photo_der_ligne > 0: # Si il y a des photo en fin de ligne
+        mat_der_ligne = images[num_image]
+        num_image += 1
+        # Affichage des photos de la derniere ligne
+        for i in range(nbr_photo_der_ligne - 1):
+            mat_der_ligne = np.concatenate((mat_der_ligne, images[num_image]), axis=1)
             num_image += 1
-            # Affichage des photos de la derniere ligne
-            for i in range(nbr_photo_der_ligne - 1):
-                b = np.concatenate((x_train_resized[num_image], panneau[target[num_image]]), axis=0)
-                mat_der_ligne = np.concatenate((mat_der_ligne, b), axis=1)
-                num_image += 1
-            # Je complete par des images blanches pour finir la ligne
-            for i in range(nbr_mat_null):
-                b = np.concatenate((mat_nul, mat_nul), axis=0)
-                mat_der_ligne = np.concatenate((mat_der_ligne, b), axis=1)
-            mat_finale = np.concatenate((mat_finale, mat_der_ligne), axis=0)
-
-        else:
-            mat_der_ligne = x_train_resized[num_image]
-            num_image += 1
-            # Affichage des photos de la derniere ligne
-            for i in range(nbr_photo_der_ligne - 1):
-                mat_der_ligne = np.concatenate((mat_der_ligne, x_train_resized[num_image]), axis=1)
-                num_image += 1
-            # Je complete par des images blanches pour finir la ligne
-            for i in range(nbr_mat_null):
-                mat_der_ligne = np.concatenate((mat_der_ligne, mat_nul), axis=1)
-            mat_finale = np.concatenate((mat_finale, mat_der_ligne), axis=0)
+        # Je complete par des images blanches pour finir la ligne
+        for i in range(nbr_mat_null):
+            mat_der_ligne = np.concatenate((mat_der_ligne, mat_nul), axis=1)
+        mat_finale = np.concatenate((mat_finale, mat_der_ligne), axis=0)
 
     # Affichage des images
-    if len(x_train_resized[-1].shape) == 3:
+    if len(images[-1].shape) == 3:
         plt.imshow(mat_finale)
     else:
         plt.imshow(mat_finale, cmap='binary')
@@ -179,7 +133,7 @@ if __name__ == '__main__':
     # Separation dataset Train/Validation
     x_train, x_val, y_train, y_val = train_test_split(df.x, df.y, train_size=0.8)
 
-    display_image(images=x_train[:10], im_ligne=5, dim_im=(150, 150))
+    display_image(images=x_train[:10].to_numpy(), im_ligne=5, dim_im=(150, 150))
     # Affichage des 10 premieres images
 
 
