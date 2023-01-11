@@ -56,6 +56,32 @@ def read_csv_dataset(parent_dataset_name):
 
         return out_image, out_target
 
+def get_data(dataset_name, pourc_dataset=1, ratio_test_val=0.8) -> tuple:
+
+    '''
+    Lecture du dataset d'image dataset_name
+    Extrait le pourcentage indique du dataset (pourc_dataset) : [0 - 1]
+    Melange le dataset
+    Divise le dataset en donnees de validation et donnees de tests ratio_test_val : [0 - 1]
+
+    retourne x_train, y_train, x_val, y_val
+    '''
+
+    df = pd.DataFrame(columns=['x', 'y'])
+    # Nombre de valeurs a extraire du dateset :
+    # Pourcentage * nbr de valeurs
+    rows = len(df.axes[0]) # Nbr de lignes
+    df = df.head(math.ceil(pourc_dataset * rows))
+
+    # Importation des datas
+    df.x, df.y = read_csv_dataset(dataset_name)
+    df.sample() # melande des donnees
+
+    # Separation dataset Train/Validation
+    x_train, x_val, y_train, y_val = train_test_split(df.x, df.y, train_size=ratio_test_val)
+
+    return x_train.to_numpy(), x_val.to_numpy(), y_train.to_numpy(), y_val.to_numpy()
+
 def display_image(images, im_ligne=5, dim_im=(100, 100)):
     '''
     Affiche les images en noir et blanc et les images en couleurs en concatenant les matrices des images
@@ -126,18 +152,140 @@ def display_image(images, im_ligne=5, dim_im=(100, 100)):
         plt.imshow(mat_finale.astype('uint8'), cmap='binary')
     plt.show()
 
+
+def analyse_apprentissage(**kwargs):
+    '''
+    En fonction des liste de variable passees en argument
+    Realise plusieurs apprentissages en utilisant toutes les combinaisons possibles
+    Synthetyse l'evolution des differents apprentissage sur un graph : 1 courbe / combinaison d'argument
+    Args:
+        try_scale: list des pourcentages de taille de donnees du dataset a utiliser
+        try_epoch: list du nombre d'epoch a tester
+        fct_model : Liste de fonction qui retourne un modele
+        try_dataset : Liste de nom de dataset
+
+    Exemple d'appel : analyse_apprentissage(try_epoch = [2],
+                  try_scale = [0.1, 0.2],
+                  try_batch = [64],
+                  fct_model = ['create_model_v1'],
+                  try_dataset = [150_150_L] )
+    '''
+
+    # Classement des arguments:
+    # Chaque argument est soit un label soit un titre
+    # La distinction permet d'annoter correctement le graphique final avec le titre d'une part
+    # et les labels des courbes d'autre part
+
+    arg_list = ['try_scale', 'try_epoch', 'try_batch', 'fct_model']
+    dict_titre = {}
+    dict_label = {}
+
+    # Si j'etudie differente version de ce parametre c'est un label
+    assert 'try_scale' in kwargs
+    value = kwargs['try_scale']
+    if len(value) > 1: # Test si label
+        dict_label['try_scale'] = value # Si oui : Valeur enregistree dans le dict de label.
+    else:
+        dict_titre['try_scale'] = value # Si non : Valeur enregistree dans le dict de titre.
+
+    assert 'try_epoch' in kwargs
+    value = kwargs['try_epoch']
+    if len(value) > 1: # Test si label
+        dict_label['try_epoch'] = value # Si oui : Valeur enregistree dans le dict de label.
+    else:
+        dict_titre['try_epoch'] = value # Si non : Valeur enregistree dans le dict de titre.
+
+    assert 'try_batch' in kwargs
+    value = kwargs['try_batch']
+    if len(value) > 1: # Test si label
+        dict_label['try_batch'] = value # Si oui : Valeur enregistree dans le dict de label.
+    else:
+        dict_titre['try_batch'] = value # Si non : Valeur enregistree dans le dict de titre.
+
+    assert 'fct_model' in kwargs
+    value = kwargs['fct_model']
+    if len(value) > 1:  # Test si label
+        dict_label['fct_model'] = value  # Si oui : Valeur enregistree dans le dict de label.
+    else:
+        dict_titre['fct_model'] = value  # Si non : Valeur enregistree dans le dict de titre.
+
+    assert 'try_dataset' in kwargs
+    value = kwargs['try_dataset']
+    if len(value) > 1:  # Test si label
+        dict_label['try_dataset'] = value  # Si oui : Valeur enregistree dans le dict de label.
+    else:
+        dict_titre['try_dataset'] = value  # Si non : Valeur enregistree dans le dict de titre.
+
+
+
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(15, 10))
+
+    # Je parcours les parametre a etudier
+    # Combinaison renvoie une liste de dictionnaire contenant chaqu'un une combinaison d'argument unique.
+    for each_comb in combinaison(**kwargs):
+        # Creation du titre unique base sur les labels
+        titre_label = ''
+        # Creation du nom ou sera enregistre le fichier log
+        titre_fichier_csv = os.path.join(os.getcwd(), ("/learning_log/")) # Adresse enregistrement des fichiers log de l'apprentissage
+        for each_label in dict_label.keys():
+            titre_label =f"{each_label} : {each_comb[each_label]}   " # Titre du label, compose de tout les elements du dictionnaire label
+            titre_fichier_csv = f"{titre_fichier_csv}_{each_label}_{each_comb[each_label]}" # Titre du fichier csv, compose de tout les elements du dictionnaire label
+        titre_fichier_csv = titre_fichier_csv + 'training.log'
+
+        # Modification de la taille du dataset
+        x_train, Y_train, _, _, _ = read_csv_dataset(f'{datasets_dir}{address_lin_to_win_or_lin("/GTSRB/origine/Train.csv")}',
+                                                             name_csv='Dataset_train', r=each_comb['try_scale'])
+
+
+        x_dataset_train = []
+        [x_dataset_train.append(images_enhancement(x, width=24, height=24, mode='RGB')) for x in x_train]
+        x_dataset_train = np.asarray(x_dataset_train)
+
+        # Reinitialisation du modele a chaque test
+        (lx, ly, lz) = x_dataset_train[0].shape
+        a = each_comb['fct_model'] + "(lx, ly, lz)"
+        # _model = 0
+        _model = eval(a) # Creation du modele
+        _model.summary()
+        _model.compile(optimizer='adam',
+                      loss='sparse_categorical_crossentropy',
+                      metrics=['accuracy'])
+
+        learning_data = keras.callbacks.CSVLogger(titre_fichier_csv, separator=',')
+
+        # Entrainement du modele
+        history = _model.fit(x_dataset_train, Y_train,
+                               batch_size=each_comb['try_batch'],
+                               epochs=each_comb['try_epoch'],
+                               verbose=fit_verbosity,
+                               callbacks=[learning_data],
+                               validation_data=(x_dataset_test, Y_test))
+
+
+        # Affichage de la courbe associee
+
+        df = pd.read_csv(titre_fichier_csv)
+        y = list(df.val_accuracy)
+        x = range(len(y))
+        ax1.plot(x, y, label=titre_label)
+
+    # Parametre des courbes
+    ax1.set_title("Evolution de l'apprentissage")
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Validation rate')
+    ax1.xaxis.set_ticks_position('bottom')
+    ax1.grid(axis='y')
+    titre_figure = "Annalyse Apprentissage :"
+    for key, value in dict_titre.items():
+        titre_figure = titre_figure + f"{key}: {value}  "
+    ax1.set_title(titre_figure)
+    plt.legend()
+    plt.show()
+
 if __name__ == '__main__':
+    x_train, y_train , _, _ = get_data('150_150_RGB', pourc_dataset=0.1)
 
-    df = pd.DataFrame(columns=['x', 'y'])
-    # Importation des datas
-    df.x, df.y = read_csv_dataset('150_150_L')
-    df.sample()
-
-    # Separation dataset Train/Validation
-    x_train, x_val, y_train, y_val = train_test_split(df.x, df.y, train_size=0.8)
-
-    display_image(images=x_train[:10].to_numpy(), im_ligne=5, dim_im=(150, 150))
+    display_image(images=x_train, im_ligne=5, dim_im=(150, 150))
     # Affichage des 10 premieres images
-
 
     print(y_train[:10])
